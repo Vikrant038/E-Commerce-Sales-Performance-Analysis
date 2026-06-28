@@ -7,6 +7,10 @@ plain-English, action-oriented insights. Built for the Freelancing Proof Pack
 "Repo 1".
 
 Run locally:   streamlit run streamlit_app.py
+
+@size-exception: complex-jsx — this is the Streamlit page entry point (top-to-bottom
+render script, ~210 lines). Business logic lives in src/*; this file only wires
+widgets to those functions. @reviewer: PR review.
 """
 
 from __future__ import annotations
@@ -72,17 +76,17 @@ if filtered.empty:
     st.warning("No data matches the current filters. Widen your selection.")
     st.stop()
 
-k = insights.kpis(filtered)
+kpi_values = insights.kpis(filtered)
 row1 = st.columns(4)
-row1[0].metric("Total revenue", f"€{k['revenue']/1e6:.2f}M")
-row1[1].metric("Gross profit", f"€{k['profit']/1e6:.2f}M", f"{k['margin']:.0f}% margin")
-row1[2].metric("Orders", f"{k['orders']:,}")
-row1[3].metric("Customers", f"{k['customers']:,}")
+row1[0].metric("Total revenue", f"€{kpi_values['revenue']/1e6:.2f}M")
+row1[1].metric("Gross profit", f"€{kpi_values['profit']/1e6:.2f}M", f"{kpi_values['margin']:.0f}% margin")
+row1[2].metric("Orders", f"{kpi_values['orders']:,}")
+row1[3].metric("Customers", f"{kpi_values['customers']:,}")
 row2 = st.columns(4)
-row2[0].metric("Avg order value", f"€{k['aov']:,.0f}")
-row2[1].metric("Items / order", f"{k['items_per_order']:.2f}")
-row2[2].metric("Units sold", f"{k['units']:,}")
-row2[3].metric("Revenue / customer", f"€{k['revenue']/k['customers']:,.0f}")
+row2[0].metric("Avg order value", f"€{kpi_values['aov']:,.0f}")
+row2[1].metric("Items / order", f"{kpi_values['items_per_order']:.2f}")
+row2[2].metric("Units sold", f"{kpi_values['units']:,}")
+row2[3].metric("Revenue / customer", f"€{kpi_values['revenue']/kpi_values['customers']:,.0f}")
 
 st.markdown("---")
 

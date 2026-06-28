@@ -59,16 +59,18 @@ def category_concentration(sales: pd.DataFrame) -> dict:
 
 
 def margin_opportunity(sales: pd.DataFrame) -> dict:
-    g = sales.groupby("category").agg(rev=("sales_amount", "sum"), profit=("profit", "sum"))
-    g = g[g["rev"] > 0]
-    if g.empty:
+    by_category = sales.groupby("category").agg(
+        rev=("sales_amount", "sum"), profit=("profit", "sum")
+    )
+    by_category = by_category[by_category["rev"] > 0]
+    if by_category.empty:
         return {}
-    g["margin"] = g["profit"] / g["rev"] * 100
-    total_rev = g["rev"].sum()
-    best = g["margin"].idxmax()
-    best_margin = g.loc[best, "margin"]
-    best_share = g.loc[best, "rev"] / total_rev * 100
-    overall = g["profit"].sum() / total_rev * 100
+    by_category["margin"] = by_category["profit"] / by_category["rev"] * 100
+    total_rev = by_category["rev"].sum()
+    best = by_category["margin"].idxmax()
+    best_margin = by_category.loc[best, "margin"]
+    best_share = by_category.loc[best, "rev"] / total_rev * 100
+    overall = by_category["profit"].sum() / total_rev * 100
     return _card(
         "💰", "Margin opportunity",
         f"{best_margin:.0f}% margin",
@@ -82,11 +84,11 @@ def margin_opportunity(sales: pd.DataFrame) -> dict:
 def repeat_customer_value(sales: pd.DataFrame) -> dict:
     total = float(sales["sales_amount"].sum())
     orders_per_cust = sales.groupby("customer_key")["order_number"].nunique()
-    n = len(orders_per_cust)
-    if n == 0 or total == 0:
+    customer_count = len(orders_per_cust)
+    if customer_count == 0 or total == 0:
         return {}
     repeat_ids = orders_per_cust[orders_per_cust >= 2].index
-    repeat_share_cust = len(repeat_ids) / n * 100
+    repeat_share_cust = len(repeat_ids) / customer_count * 100
     repeat_rev = sales[sales["customer_key"].isin(repeat_ids)]["sales_amount"].sum()
     repeat_rev_share = repeat_rev / total * 100
     return _card(

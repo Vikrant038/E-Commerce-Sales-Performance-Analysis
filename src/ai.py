@@ -33,52 +33,65 @@ _SYSTEM = (
 )
 
 
+TOP_N_IN_CONTEXT = 5
+
+
+def _kpi_lines(sales: pd.DataFrame) -> list[str]:
+    kpi_values = insights.kpis(sales)
+    return [
+        "DATA SNAPSHOT (current dashboard filter; all figures in EUR):",
+        f"- Revenue: {kpi_values['revenue']:,.0f}; "
+        f"Gross profit: {kpi_values['profit']:,.0f} ({kpi_values['margin']:.1f}% margin)",
+        f"- Orders: {kpi_values['orders']:,}; Customers: {kpi_values['customers']:,}; "
+        f"Units: {kpi_values['units']:,}; Avg order value: {kpi_values['aov']:,.0f}",
+    ]
+
+
+def _category_lines(sales: pd.DataFrame) -> list[str]:
+    by_category = sales.groupby("category").agg(
+        revenue=("sales_amount", "sum"), profit=("profit", "sum")
+    ).sort_values("revenue", ascending=False)
+    lines = ["- Revenue & margin by category:"]
+    for category, row in by_category.iterrows():
+        margin = row["profit"] / row["revenue"] * 100 if row["revenue"] else 0
+        lines.append(f"    {category}: {row['revenue']:,.0f} ({margin:.0f}% margin)")
+    return lines
+
+
+def _segment_lines(sales: pd.DataFrame) -> list[str]:
+    by_segment = sales.groupby("customer_segment").agg(
+        revenue=("sales_amount", "sum"), customers=("customer_key", "nunique")
+    ).sort_values("revenue", ascending=False)
+    lines = ["- By customer segment (revenue / #customers):"]
+    for segment, row in by_segment.iterrows():
+        lines.append(f"    {segment}: {row['revenue']:,.0f} / {int(row['customers']):,}")
+    return lines
+
+
+def _top_line(sales: pd.DataFrame, column: str, label: str) -> str:
+    top = (
+        sales.groupby(column)["sales_amount"].sum()
+        .sort_values(ascending=False).head(TOP_N_IN_CONTEXT)
+    )
+    return f"- {label}: " + ", ".join(f"{name}: {value:,.0f}" for name, value in top.items())
+
+
 def build_context(sales: pd.DataFrame) -> str:
     """Compact, PII-free aggregate snapshot of the (filtered) data for the model."""
     if sales.empty:
         return "No data in the current filter."
-    k = insights.kpis(sales)
-    lines = [
-        "DATA SNAPSHOT (current dashboard filter; all figures in EUR):",
-        f"- Revenue: {k['revenue']:,.0f}; Gross profit: {k['profit']:,.0f} "
-        f"({k['margin']:.1f}% margin)",
-        f"- Orders: {k['orders']:,}; Customers: {k['customers']:,}; "
-        f"Units: {k['units']:,}; Avg order value: {k['aov']:,.0f}",
-    ]
-
-    by_cat = sales.groupby("category").agg(
-        revenue=("sales_amount", "sum"), profit=("profit", "sum")
-    )
-    lines.append("- Revenue & margin by category:")
-    for cat, row in by_cat.sort_values("revenue", ascending=False).iterrows():
-        margin = row["profit"] / row["revenue"] * 100 if row["revenue"] else 0
-        lines.append(f"    {cat}: {row['revenue']:,.0f} ({margin:.0f}% margin)")
-
-    by_seg = sales.groupby("customer_segment").agg(
-        revenue=("sales_amount", "sum"), customers=("customer_key", "nunique")
-    )
-    lines.append("- By customer segment (revenue / #customers):")
-    for seg, row in by_seg.sort_values("revenue", ascending=False).iterrows():
-        lines.append(f"    {seg}: {row['revenue']:,.0f} / {int(row['customers']):,}")
-
     by_year = sales.groupby("order_year")["sales_amount"].sum()
-    lines.append("- Revenue by year: " + ", ".join(
-        f"{int(y)}: {v:,.0f}" for y, v in by_year.items()
-    ))
-
-    top_countries = sales.groupby("country")["sales_amount"].sum().sort_values(
-        ascending=False
-    ).head(5)
-    lines.append("- Top countries: " + ", ".join(
-        f"{c}: {v:,.0f}" for c, v in top_countries.items()
-    ))
-
-    top_products = sales.groupby("product_name")["sales_amount"].sum().sort_values(
-        ascending=False
-    ).head(5)
-    lines.append("- Top products: " + ", ".join(
-        f"{p}: {v:,.0f}" for p, v in top_products.items()
-    ))
+    year_line = "- Revenue by year: " + ", ".join(
+        f"{int(year)}: {value:,.0f}" for year, value in by_year.items()
+    )
+    lines = [
+        *_kpi_lines(sales),
+        *_category_lines(sales),
+        *_segment_lines(sales),
+        year_line,
+        _top_line(sales, "country", "Top countries"),
+        _top_line(sales, "product_name", "Top products"),
+    ]
     return "\n".join(lines)
 
 

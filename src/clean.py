@@ -1,6 +1,10 @@
 """
 Bronze -> Silver -> Gold cleaning pipeline (pandas).
 
+@size-exception: cohesive-algorithm — a single end-to-end ETL pipeline (>200 lines).
+The Silver transforms and Gold builders are one cohesive data flow; splitting across
+files would obscure the Bronze->Silver->Gold lineage. @reviewer: PR review.
+
 This is the Python counterpart to the SQL warehouse: it takes the **raw** CRM/ERP
 extracts in ``datasets/bronze.*`` and reproduces the cleaned Silver layer and the
 Gold star schema (``dim_customers``, ``dim_products``, ``fact_sales``). It exists
@@ -23,10 +27,13 @@ Run it:
 from __future__ import annotations
 
 import argparse
+import logging
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+LOGGER = logging.getLogger(__name__)
 
 DATA_DIR = Path(__file__).resolve().parent.parent / "datasets"
 
@@ -74,11 +81,11 @@ def clean_crm_prd_info(bronze: pd.DataFrame) -> pd.DataFrame:
     return df.reset_index(drop=True)
 
 
-def _parse_yyyymmdd(s: pd.Series) -> pd.Series:
+def _parse_yyyymmdd(raw_dates: pd.Series) -> pd.Series:
     """Integer-like YYYYMMDD -> date; 0, blanks, and wrong-length values -> NaT."""
-    s = s.str.strip()
-    valid = s.str.fullmatch(r"\d{8}") & (s != "00000000")
-    return pd.to_datetime(s.where(valid), format="%Y%m%d", errors="coerce")
+    trimmed = raw_dates.str.strip()
+    is_valid = trimmed.str.fullmatch(r"\d{8}") & (trimmed != "00000000")
+    return pd.to_datetime(trimmed.where(is_valid), format="%Y%m%d", errors="coerce")
 
 
 def clean_crm_sales_details(bronze: pd.DataFrame) -> pd.DataFrame:
@@ -109,9 +116,9 @@ def clean_erp_cust_az12(bronze: pd.DataFrame) -> pd.DataFrame:
     df["cid"] = df["cid"].str.replace(r"^NAS", "", regex=True).str.strip()
     df["bdate"] = pd.to_datetime(df["bdate"], errors="coerce")
     df.loc[df["bdate"] > pd.Timestamp.now(), "bdate"] = pd.NaT
-    g = df["gen"].str.strip().str.upper()
+    gender_raw = df["gen"].str.strip().str.upper()
     df["gen"] = np.select(
-        [g.isin(["F", "FEMALE"]), g.isin(["M", "MALE"])],
+        [gender_raw.isin(["F", "FEMALE"]), gender_raw.isin(["M", "MALE"])],
         ["Female", "Male"],
         default="n/a",
     )
@@ -122,8 +129,8 @@ def clean_erp_loc_a101(bronze: pd.DataFrame) -> pd.DataFrame:
     """Remove the dash from the key, standardise country names."""
     df = bronze.copy()
     df["cid"] = df["cid"].str.replace("-", "", regex=False).str.strip()
-    c = df["cntry"].str.strip()
-    df["cntry"] = c.map(_COUNTRY).fillna(c.where(c != "", "n/a"))
+    country_raw = df["cntry"].str.strip()
+    df["cntry"] = country_raw.map(_COUNTRY).fillna(country_raw.where(country_raw != "", "n/a"))
     return df.reset_index(drop=True)
 
 
@@ -136,71 +143,83 @@ def clean_erp_px_cat(bronze: pd.DataFrame) -> pd.DataFrame:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Gold star schema
+# Gold star schema (one builder per table, assembled by build_gold)
 # ─────────────────────────────────────────────────────────────────────────────
-def build_gold(silver: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
-    """Assemble dim_customers, dim_products, fact_sales from the Silver layer."""
-    cust = silver["crm_cust_info"]
-    az12 = silver["erp_cust_az12"]
-    loc = silver["erp_loc_a101"]
-    prd = silver["crm_prd_info"]
-    cat = silver["erp_px_cat"]
-    sales = silver["crm_sales_details"]
-
-    # dim_customers — CRM is master; gender falls back to ERP when CRM is n/a.
-    dc = cust.merge(az12, left_on="cst_key", right_on="cid", how="left")
-    dc = dc.merge(loc, left_on="cst_key", right_on="cid", how="left")
-    gender = np.where(dc["cst_gndr"] != "n/a", dc["cst_gndr"], dc["gen"].fillna("n/a"))
+def _build_dim_customers(silver: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    """Customer dimension — CRM is master; gender falls back to ERP when CRM is n/a."""
+    joined = silver["crm_cust_info"].merge(
+        silver["erp_cust_az12"], left_on="cst_key", right_on="cid", how="left"
+    ).merge(
+        silver["erp_loc_a101"], left_on="cst_key", right_on="cid", how="left"
+    )
+    gender = np.where(
+        joined["cst_gndr"] != "n/a", joined["cst_gndr"], joined["gen"].fillna("n/a")
+    )
     dim_customers = pd.DataFrame(
         {
-            "customer_id": dc["cst_id"],
-            "customer_number": dc["cst_key"],
-            "first_name": dc["cst_firstname"],
-            "last_name": dc["cst_lastname"],
-            "country": dc["cntry"].fillna("n/a"),
-            "marital_status": dc["cst_marital_status"],
+            "customer_id": joined["cst_id"],
+            "customer_number": joined["cst_key"],
+            "first_name": joined["cst_firstname"],
+            "last_name": joined["cst_lastname"],
+            "country": joined["cntry"].fillna("n/a"),
+            "marital_status": joined["cst_marital_status"],
             "gender": gender,
-            "birthdate": dc["bdate"],
-            "create_date": dc["cst_create_date"],
+            "birthdate": joined["bdate"],
+            "create_date": joined["cst_create_date"],
         }
     ).sort_values("customer_id").reset_index(drop=True)
     dim_customers.insert(0, "customer_key", dim_customers.index + 1)
+    return dim_customers
 
-    # dim_products — the current version of each product (latest start date per
-    # product key), enriched with the category lookup.
-    latest = prd.sort_values("prd_start_dt").drop_duplicates("prd_key", keep="last")
-    cur = latest.merge(cat, left_on="cat_id", right_on="id", how="left")
+
+def _build_dim_products(silver: dict[str, pd.DataFrame]) -> pd.DataFrame:
+    """Product dimension — current version per product key, enriched with category."""
+    latest = (
+        silver["crm_prd_info"].sort_values("prd_start_dt")
+        .drop_duplicates("prd_key", keep="last")
+    )
+    enriched = latest.merge(silver["erp_px_cat"], left_on="cat_id", right_on="id", how="left")
     dim_products = pd.DataFrame(
         {
-            "product_id": cur["prd_id"].astype(int),
-            "product_number": cur["prd_key"],
-            "product_name": cur["prd_nm"],
-            "category_id": cur["cat_id"],
-            "category": cur["cat"],
-            "subcategory": cur["subcat"],
-            "maintenance": cur["maintenance"],
-            "cost": cur["prd_cost"],
-            "product_line": cur["prd_line"],
-            "start_date": cur["prd_start_dt"],
+            "product_id": enriched["prd_id"].astype(int),
+            "product_number": enriched["prd_key"],
+            "product_name": enriched["prd_nm"],
+            "category_id": enriched["cat_id"],
+            "category": enriched["cat"],
+            "subcategory": enriched["subcat"],
+            "maintenance": enriched["maintenance"],
+            "cost": enriched["prd_cost"],
+            "product_line": enriched["prd_line"],
+            "start_date": enriched["prd_start_dt"],
         }
     ).sort_values("product_id").reset_index(drop=True)
     dim_products.insert(0, "product_key", dim_products.index + 1)
+    return dim_products
 
-    # fact_sales — resolve surrogate keys from the dimensions.
-    s = sales.copy()
-    s["sls_cust_id"] = pd.to_numeric(s["sls_cust_id"], errors="coerce").astype("Int64")
-    f = s.merge(
+
+def _build_fact_sales(
+    silver: dict[str, pd.DataFrame],
+    dim_products: pd.DataFrame,
+    dim_customers: pd.DataFrame,
+) -> pd.DataFrame:
+    """Sales fact — resolve surrogate keys from the dimensions."""
+    sales = silver["crm_sales_details"]
+    sales_keyed = sales.copy()
+    sales_keyed["sls_cust_id"] = pd.to_numeric(
+        sales_keyed["sls_cust_id"], errors="coerce"
+    ).astype("Int64")
+    joined = sales_keyed.merge(
         dim_products[["product_key", "product_number"]],
         left_on="sls_prd_key", right_on="product_number", how="left",
     ).merge(
         dim_customers[["customer_key", "customer_id"]],
         left_on="sls_cust_id", right_on="customer_id", how="left",
     )
-    fact_sales = pd.DataFrame(
+    return pd.DataFrame(
         {
             "order_number": sales["sls_ord_num"],
-            "product_key": f["product_key"],
-            "customer_key": f["customer_key"],
+            "product_key": joined["product_key"],
+            "customer_key": joined["customer_key"],
             "order_date": sales["sls_order_dt"],
             "shipping_date": sales["sls_ship_dt"],
             "due_date": sales["sls_due_dt"],
@@ -209,6 +228,13 @@ def build_gold(silver: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
             "price": sales["sls_price"],
         }
     )
+
+
+def build_gold(silver: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
+    """Assemble the Gold star schema (dim_customers, dim_products, fact_sales)."""
+    dim_customers = _build_dim_customers(silver)
+    dim_products = _build_dim_products(silver)
+    fact_sales = _build_fact_sales(silver, dim_products, dim_customers)
     return {
         "dim_customers": dim_customers,
         "dim_products": dim_products,
@@ -236,12 +262,14 @@ def main() -> None:
         help="Output directory (never the committed datasets/gold.* files).",
     )
     args = parser.parse_args()
-    out = Path(args.out)
-    out.mkdir(parents=True, exist_ok=True)
-    gold = run_pipeline()
-    for name, df in gold.items():
-        df.to_csv(out / f"gold.{name}.csv", index=False)
-        print(f"wrote {name}: {len(df):,} rows -> {out / f'gold.{name}.csv'}")
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+    output_dir = Path(args.out)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    gold_tables = run_pipeline()
+    for table_name, table in gold_tables.items():
+        destination = output_dir / f"gold.{table_name}.csv"
+        table.to_csv(destination, index=False)
+        LOGGER.info("wrote %s: %s rows -> %s", table_name, f"{len(table):,}", destination)
 
 
 if __name__ == "__main__":

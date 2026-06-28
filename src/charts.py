@@ -4,6 +4,10 @@ Plotly figure builders for the dashboard.
 Each function takes the filtered sales frame and returns a ready-to-render
 plotly Figure. Charts mirror the analyses in ../scripts/ so the dashboard and
 the SQL tell the same story.
+
+@size-exception: cohesive-module — a flat registry of independent figure builders
+(>200 lines). Splitting into multiple files would fragment one logical concern
+(the dashboard's chart catalogue) with no readability gain. @reviewer: PR review.
 """
 
 from __future__ import annotations
@@ -57,6 +61,11 @@ CATEGORY_COLORS = {
 }
 
 
+# @size-exception: config-object
+# @components: the go.Pie trace spec and the go.Figure layout (title, legend, annotation)
+# @cohesion: it is a single Plotly figure definition; splitting the trace from its
+#   layout would scatter one chart's config across two functions and reduce readability
+# @reviewer: awaiting PR review
 def category_donut(sales: pd.DataFrame) -> go.Figure:
     """Category contribution — mirrors 10_part_to_whole_analysis.sql."""
     by_cat = (
@@ -139,45 +148,51 @@ def seasonality(sales: pd.DataFrame) -> go.Figure:
     return _layout(fig, "Revenue by calendar month")
 
 
-def subcategory_bar(sales: pd.DataFrame, n: int = 8) -> go.Figure:
+def subcategory_bar(sales: pd.DataFrame, top_n: int = 8) -> go.Figure:
     """Top subcategories by revenue — one level below category."""
-    top = (
+    top_subcategories = (
         sales.groupby("subcategory")["sales_amount"].sum()
-        .sort_values(ascending=False).head(n).reset_index()
+        .sort_values(ascending=False).head(top_n).reset_index()
     )
-    fig = px.bar(top, x="sales_amount", y="subcategory", orientation="h", text_auto=".2s")
+    fig = px.bar(
+        top_subcategories, x="sales_amount", y="subcategory",
+        orientation="h", text_auto=".2s",
+    )
     fig.update_traces(marker_color=ACCENT)
     fig.update_yaxes(title=None, categoryorder="total ascending")
     fig.update_xaxes(title="Revenue (€)", tickprefix="€")
-    return _layout(fig, f"Top {n} subcategories by revenue")
+    return _layout(fig, f"Top {top_n} subcategories by revenue")
 
 
 def margin_by_category(sales: pd.DataFrame) -> go.Figure:
     """Gross margin % by category — where the profit really is."""
-    g = sales.groupby("category").agg(
+    by_category = sales.groupby("category").agg(
         rev=("sales_amount", "sum"), profit=("profit", "sum")
     ).reset_index()
-    g = g[g["rev"] > 0]
-    g["margin"] = g["profit"] / g["rev"] * 100
-    g = g.sort_values("margin", ascending=False)
-    fig = px.bar(g, x="category", y="margin", text="margin")
+    by_category = by_category[by_category["rev"] > 0]
+    by_category["margin"] = by_category["profit"] / by_category["rev"] * 100
+    by_category = by_category.sort_values("margin", ascending=False)
+    fig = px.bar(by_category, x="category", y="margin", text="margin")
     fig.update_traces(marker_color="#16A085", texttemplate="%{text:.0f}%")
     fig.update_yaxes(title="Gross margin (%)", ticksuffix="%")
     fig.update_xaxes(title=None)
     return _layout(fig, "Gross margin by category")
 
 
-def top_products(sales: pd.DataFrame, n: int = 10) -> go.Figure:
+def top_products(sales: pd.DataFrame, top_n: int = 10) -> go.Figure:
     """Top-N products by revenue — mirrors 05_ranking_analysis.sql."""
-    top = (
+    top_by_revenue = (
         sales.groupby("product_name")["sales_amount"].sum()
-        .sort_values(ascending=False).head(n).reset_index()
+        .sort_values(ascending=False).head(top_n).reset_index()
     )
-    fig = px.bar(top, x="sales_amount", y="product_name", orientation="h", text_auto=".2s")
+    fig = px.bar(
+        top_by_revenue, x="sales_amount", y="product_name",
+        orientation="h", text_auto=".2s",
+    )
     fig.update_traces(marker_color=ACCENT)
     fig.update_yaxes(title=None, categoryorder="total ascending")
     fig.update_xaxes(title="Revenue (€)", tickprefix="€")
-    return _layout(fig, f"Top {n} products by revenue")
+    return _layout(fig, f"Top {top_n} products by revenue")
 
 
 def cost_segmentation(sales: pd.DataFrame) -> go.Figure:
@@ -218,14 +233,17 @@ def age_groups(sales: pd.DataFrame) -> go.Figure:
     return _layout(fig, "Revenue by age group")
 
 
-def top_countries(sales: pd.DataFrame, n: int = 10) -> go.Figure:
+def top_countries(sales: pd.DataFrame, top_n: int = 10) -> go.Figure:
     """Top countries by revenue."""
-    top = (
+    top_by_revenue = (
         sales.groupby("country")["sales_amount"].sum()
-        .sort_values(ascending=False).head(n).reset_index()
+        .sort_values(ascending=False).head(top_n).reset_index()
     )
-    fig = px.bar(top, x="sales_amount", y="country", orientation="h", text_auto=".2s")
+    fig = px.bar(
+        top_by_revenue, x="sales_amount", y="country",
+        orientation="h", text_auto=".2s",
+    )
     fig.update_traces(marker_color=ACCENT)
     fig.update_yaxes(title=None, categoryorder="total ascending")
     fig.update_xaxes(title="Revenue (€)", tickprefix="€")
-    return _layout(fig, f"Top {n} countries by revenue")
+    return _layout(fig, f"Top {top_n} countries by revenue")

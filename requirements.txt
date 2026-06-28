@@ -2,4 +2,8 @@ streamlit==1.40.2
 pandas==2.2.3
 plotly==5.24.1
 numpy==2.0.2
+
+# Optional AI assistant — any one provider key enables the "Ask the data" tab.
 anthropic==0.112.0
+openai==2.44.0
+google-genai==1.47.0

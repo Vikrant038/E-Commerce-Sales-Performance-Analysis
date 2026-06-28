@@ -13,8 +13,9 @@ datasets/_rebuilt/
 venv/
 env/
 
-# Streamlit
+# Secrets
 .streamlit/secrets.toml
+.env
 
 # OS / editor
 .DS_Store

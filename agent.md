@@ -68,18 +68,21 @@ E-Commerce-Sales-Performance-Analysis/
 │   ├── clean.py          #   Bronze→Silver→Gold cleaning pipeline (mirrors the SQL)
 │   ├── insights.py       #   live KPI + 6 action-oriented insight computations
 │   ├── charts.py         #   Plotly figure builders (mirror the SQL scripts)
-│   ├── llm.py            #   provider-agnostic LLM client (Anthropic; key from secrets/env)
-│   └── ai.py             #   PII-free "ask the data" + executive summary
-├── tests/                # pytest suite (run in CI): data quality, KPIs, cleaning, AI safety
+│   ├── llm.py            #   multi-provider LLM client (Anthropic/OpenAI/Gemini, auto-detected)
+│   ├── ai.py             #   PII-free "ask the data" + executive summary
+│   └── README.md         #   module directory guide (Pillar 5.3)
+├── tests/                # pytest suite (run in CI): data quality, KPIs, cleaning, AI safety, providers
 ├── .github/workflows/ci.yml  # GitHub Actions: pip install + pytest on push/PR
+├── CLAUDE.md             # governing standards + risk tier (binds repo to Enterprise-Coding-Standards)
 ├── docs/
 │   ├── INSIGHTS.md       #   one-page case study
 │   ├── VIDEO_SCRIPT.md   #   2-min Loom script
 │   └── screenshots/      #   screenshot/GIF/Loom assets for README
-├── requirements.txt      # streamlit, pandas, plotly, numpy, anthropic
+├── requirements.txt      # streamlit, pandas, plotly, numpy, anthropic, openai, google-genai
 ├── requirements-dev.txt  # + pytest
 ├── .streamlit/config.toml
-├── .streamlit/secrets.toml.example  # template for the optional AI key
+├── .streamlit/secrets.toml.example  # template for the optional AI key(s)
+├── .env.example          # env-var template (GUARDRAILS 1.4)
 ├── scripts/
 │   ├── 01_dimension_exploration.sql
 │   ├── 02_range_exploration.sql

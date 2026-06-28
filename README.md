@@ -42,13 +42,14 @@ pip install -r requirements.txt
 streamlit run streamlit_app.py     # opens http://localhost:8501
 ```
 
-## 🤖 Enable the AI assistant (optional)
-The dashboard works fully without it. To turn on the **Ask the data** tab:
+## 🤖 Enable the AI assistant (optional, multi-provider)
+The dashboard works fully without it. To turn on the **Ask the data** tab, add **any one** provider key:
 ```bash
 cp .streamlit/secrets.toml.example .streamlit/secrets.toml
-# then put your key in it:  ANTHROPIC_API_KEY = "sk-ant-..."
+# put ONE of these in it — it's auto-detected:
+#   ANTHROPIC_API_KEY = "sk-ant-..."   (or)  OPENAI_API_KEY = "sk-..."   (or)  GEMINI_API_KEY = "AIza..."
 ```
-On Streamlit Cloud, add the same key under **App → Settings → Secrets**. Set `LLM_MODEL = "claude-haiku-4-5"` for a cheaper public demo. The assistant only receives an aggregated snapshot of the current view (no customer PII) and is capped per session to control cost.
+On Streamlit Cloud, add the same key under **App → Settings → Secrets**. If several keys are present the order of preference is Anthropic → OpenAI → Gemini (override with `LLM_PROVIDER`); pick a cheaper model with `LLM_MODEL` (e.g. `claude-haiku-4-5`, `gpt-4o-mini`, `gemini-2.0-flash`). The assistant receives **only an aggregated snapshot** of the current view (no customer PII), runs no code, has a request timeout, and is capped per session to control cost.
 
 ## 🧪 Tests & CI
 ```bash
