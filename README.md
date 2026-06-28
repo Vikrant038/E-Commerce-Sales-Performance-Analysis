@@ -1,6 +1,8 @@
 # 📊 E-Commerce Sales Performance Analysis
 
-**Turn raw e-commerce data into decisions.** This project takes raw CRM/ERP sales extracts, builds a clean SQL data warehouse, and serves the results as an **interactive dashboard** anyone can use — no SQL required.
+[![CI](https://github.com/Vikrant038/E-Commerce-Sales-Performance-Analysis/actions/workflows/ci.yml/badge.svg)](https://github.com/Vikrant038/E-Commerce-Sales-Performance-Analysis/actions/workflows/ci.yml)
+
+**Turn raw e-commerce data into decisions.** This project takes raw CRM/ERP sales extracts, cleans them into a star schema, and serves the result as an **interactive dashboard** anyone can use — no SQL required. It even answers plain-English questions about the data via an optional **AI assistant**.
 
 🔗 **Live demo:** _<add Streamlit Cloud URL>_ · 🎥 **2-min walkthrough:** _<add Loom link>_
 
@@ -13,9 +15,10 @@
 ~27,700 orders, 18,500 customers and 296 products lived in six raw source tables. Useful, but unusable: no one could quickly answer *where revenue comes from, who the best customers are, or whether the business is growing.*
 
 ## What it does
-- **Cleans & models the data** into a tidy star schema using a Medallion (Bronze → Silver → Gold) SQL warehouse.
-- **Dashboard** with live KPIs (revenue, orders, customers, average order value, units) and filters for date, category, country, and customer segment.
-- **Four views** — Overview (trends), Products, Customers, and plain-English **Insights** — all updating instantly as you filter.
+- **Cleans & models the data** into a tidy star schema — a Medallion (Bronze → Silver → Gold) pipeline, implemented in **both T-SQL** (`scripts/`) **and Python** (`src/clean.py`, fully tested).
+- **Dashboard** with live KPIs (revenue, **gross profit & margin**, orders, customers, AOV, units) and filters for date, category, country, and customer segment.
+- **Five views** — Overview, Products, Customers, plain-English **Insights**, and an **🤖 AI assistant** — all updating instantly as you filter.
+- **Ask the data in plain English** (optional): an LLM answers questions and writes an executive summary, seeing **only an aggregated, PII-free snapshot** — never raw records, and it runs no code.
 - **Download** the filtered slice as CSV.
 
 ## 💡 Insights it surfaces (each with a "so what")
@@ -39,6 +42,21 @@ pip install -r requirements.txt
 streamlit run streamlit_app.py     # opens http://localhost:8501
 ```
 
+## 🤖 Enable the AI assistant (optional)
+The dashboard works fully without it. To turn on the **Ask the data** tab:
+```bash
+cp .streamlit/secrets.toml.example .streamlit/secrets.toml
+# then put your key in it:  ANTHROPIC_API_KEY = "sk-ant-..."
+```
+On Streamlit Cloud, add the same key under **App → Settings → Secrets**. Set `LLM_MODEL = "claude-haiku-4-5"` for a cheaper public demo. The assistant only receives an aggregated snapshot of the current view (no customer PII) and is capped per session to control cost.
+
+## 🧪 Tests & CI
+```bash
+pip install -r requirements-dev.txt
+pytest -q          # 23 tests: data quality, KPIs, insights, cleaning pipeline, AI safety
+```
+Every push runs the suite via GitHub Actions (badge above). `tests/test_clean.py` even verifies the Python cleaning pipeline **reproduces the committed Gold layer** (row counts + revenue within 0.01%).
+
 ## ☁️ Deploy free (Streamlit Community Cloud)
 1. Push this repo to GitHub.
 2. Go to [share.streamlit.io](https://share.streamlit.io) → **New app**.
@@ -52,13 +70,19 @@ streamlit run streamlit_app.py     # opens http://localhost:8501
 datasets/        Bronze (raw) → Silver (cleaned) → Gold (star schema) CSV exports
 scripts/         12 T-SQL analytical scripts (exploration → ranking → time-series → segmentation)
 streamlit_app.py Dashboard entry point
-src/             data.py (load/filter) · insights.py (live metrics) · charts.py (Plotly figures)
-docs/            Case study + screenshot/Loom assets
+src/
+  data.py        cached load + filter over the Gold CSVs
+  clean.py       Python Bronze→Silver→Gold cleaning pipeline (mirrors the SQL)
+  insights.py    live KPIs + 6 action-oriented insights
+  charts.py      Plotly figures (each mirrors a SQL script)
+  llm.py / ai.py provider-agnostic LLM client + PII-free "ask the data" layer
+tests/           pytest suite (run in CI)
+docs/            case study, 2-min video script, screenshot/Loom assets
 ```
 
-The dashboard reads the **Gold-layer** CSVs (already cleaned by the SQL pipeline) and never touches Bronze/Silver — the same separation the warehouse enforces. Each chart mirrors a SQL script (e.g. category mix ↔ `10_part_to_whole_analysis.sql`, top products ↔ `05_ranking_analysis.sql`).
+The dashboard reads the **Gold-layer** CSVs and never touches Bronze/Silver — the same separation the warehouse enforces. Each chart mirrors a SQL script (e.g. category mix ↔ `10_part_to_whole_analysis.sql`, top products ↔ `05_ranking_analysis.sql`). `src/clean.py` shows the messy→clean transformation end-to-end in pandas for anyone who wants to see how the Gold layer is produced.
 
-**Tech:** T-SQL (SQL Server / Medallion) · Python · pandas · Streamlit · Plotly.
+**Tech:** T-SQL (SQL Server / Medallion) · Python · pandas · Streamlit · Plotly · Anthropic (optional) · pytest + GitHub Actions.
 
 ---
 

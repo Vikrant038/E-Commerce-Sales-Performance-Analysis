@@ -63,15 +63,23 @@ E-Commerce-Sales-Performance-Analysis/
 │   ├── silver.*          # Cleaned, standardized
 │   └── gold.*            # Dimensional model + analytical views (CSV exports)
 ├── streamlit_app.py      # Dashboard entry point (Streamlit Cloud auto-detects this)
-├── src/                  # Dashboard modules
+├── src/                  # Python modules
 │   ├── data.py           #   cached loaders + filters over datasets/gold.*
-│   ├── insights.py       #   live KPI + 3 headline insight computations
-│   └── charts.py         #   Plotly figure builders (mirror the SQL scripts)
+│   ├── clean.py          #   Bronze→Silver→Gold cleaning pipeline (mirrors the SQL)
+│   ├── insights.py       #   live KPI + 6 action-oriented insight computations
+│   ├── charts.py         #   Plotly figure builders (mirror the SQL scripts)
+│   ├── llm.py            #   provider-agnostic LLM client (Anthropic; key from secrets/env)
+│   └── ai.py             #   PII-free "ask the data" + executive summary
+├── tests/                # pytest suite (run in CI): data quality, KPIs, cleaning, AI safety
+├── .github/workflows/ci.yml  # GitHub Actions: pip install + pytest on push/PR
 ├── docs/
 │   ├── INSIGHTS.md       #   one-page case study
+│   ├── VIDEO_SCRIPT.md   #   2-min Loom script
 │   └── screenshots/      #   screenshot/GIF/Loom assets for README
-├── requirements.txt      # streamlit, pandas, plotly
+├── requirements.txt      # streamlit, pandas, plotly, numpy, anthropic
+├── requirements-dev.txt  # + pytest
 ├── .streamlit/config.toml
+├── .streamlit/secrets.toml.example  # template for the optional AI key
 ├── scripts/
 │   ├── 01_dimension_exploration.sql
 │   ├── 02_range_exploration.sql
@@ -138,10 +146,12 @@ Source Systems (CRM, ERP)
 
 | Aspect | Approach |
 |--------|----------|
-| **Framework** | None formalized (manual verification) |
+| **Framework** | `pytest` for the Python layer (`tests/`), run automatically in CI; manual SSMS verification for SQL |
+| **Run tests** | `pip install -r requirements-dev.txt && pytest -q` (23 tests) |
 | **Validation** | Run scripts in SSMS/Azure Data Studio; inspect row counts, spot-check known values |
-| **Regression** | Compare `gold.report_*` CSV outputs against expected snapshots |
-| **Data Quality** | Silver layer should have no NULLs in PK/FK columns; Gold layer FK integrity (fact_sales → dim_*) |
+| **Regression** | `tests/test_clean.py` asserts the Python pipeline reproduces committed Gold (rows exact, revenue within 0.01%) |
+| **Data Quality** | Tests enforce no NULL PK/FK and fact→dim integrity; AI tests assert no PII leaves in the LLM context |
+| **App smoke test** | `streamlit.testing.v1.AppTest` renders the whole app headless with no exceptions |
 
 ### Adding a New Analytical Script
 1. Create `scripts/NN_new_analysis.sql` (next number)

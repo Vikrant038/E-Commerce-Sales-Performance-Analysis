@@ -13,7 +13,10 @@ from __future__ import annotations
 
 import streamlit as st
 
-from src import charts, data, insights
+from src import ai, charts, data, insights, llm
+
+# Per-session cap on AI calls — protects a public demo from runaway API cost.
+AI_CALL_LIMIT = 15
 
 st.set_page_config(
     page_title="E-Commerce Sales Performance",
@@ -86,8 +89,8 @@ st.markdown("---")
 # ─────────────────────────────────────────────────────────────────────────────
 # Tabs
 # ─────────────────────────────────────────────────────────────────────────────
-tab_overview, tab_products, tab_customers, tab_insights = st.tabs(
-    ["📈 Overview", "📦 Products", "👥 Customers", "💡 Insights"]
+tab_overview, tab_products, tab_customers, tab_insights, tab_ai = st.tabs(
+    ["📈 Overview", "📦 Products", "👥 Customers", "💡 Insights", "🤖 Ask the data"]
 )
 
 with tab_overview:
@@ -140,6 +143,58 @@ with tab_insights:
                             unsafe_allow_html=True)
                 st.write(ins["takeaway"])
                 st.success(f"**Action:** {ins['action']}")
+
+with tab_ai:
+    st.subheader("Ask a question about this data")
+    st.caption(
+        "Powered by an LLM that sees **only an aggregated, PII-free snapshot** of "
+        "the current filter — never raw customer records, and it runs no code."
+    )
+
+    if not llm.available():
+        st.info(
+            "🔒 The AI assistant is **not configured** (no API key) — the rest of "
+            "the dashboard works fully without it.\n\n"
+            "To enable it locally, add to `.streamlit/secrets.toml`:\n"
+            "```toml\nANTHROPIC_API_KEY = \"sk-ant-...\"\n```\n"
+            "On Streamlit Cloud, add the same key under **App → Settings → Secrets**."
+        )
+        with st.expander("See exactly what would be sent to the model"):
+            st.code(ai.build_context(filtered), language="text")
+    else:
+        used = st.session_state.get("ai_calls", 0)
+        remaining = AI_CALL_LIMIT - used
+        if remaining <= 0:
+            st.warning("AI request limit reached for this session. Reload to reset.")
+        else:
+            st.caption(f"{remaining} AI requests left this session.")
+            col_q, col_s = st.columns([3, 1])
+            with col_q:
+                question = st.text_input(
+                    "Your question",
+                    placeholder="e.g. Which country grew the most in 2013?",
+                    label_visibility="collapsed",
+                )
+            with col_s:
+                summarize = st.button("📝 Summarize view", use_container_width=True)
+
+            if st.button("Ask", type="primary") and question.strip():
+                with st.spinner("Thinking…"):
+                    try:
+                        st.session_state["ai_calls"] = used + 1
+                        st.markdown(ai.answer_question(filtered, question))
+                    except llm.LLMError as exc:
+                        st.error(f"AI request failed: {exc}")
+            if summarize:
+                with st.spinner("Summarizing…"):
+                    try:
+                        st.session_state["ai_calls"] = used + 1
+                        st.markdown(ai.executive_summary(filtered))
+                    except llm.LLMError as exc:
+                        st.error(f"AI request failed: {exc}")
+
+        with st.expander("What the model sees (aggregated snapshot)"):
+            st.code(ai.build_context(filtered), language="text")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Download
