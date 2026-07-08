@@ -4,7 +4,7 @@
 
 **Turn raw e-commerce data into decisions.** This project takes raw CRM/ERP sales extracts, cleans them into a star schema, and serves the result as an **interactive dashboard** anyone can use — no SQL required. It even answers plain-English questions about the data via an optional **AI assistant**.
 
-🔗 **Live demo:** _<add Streamlit Cloud URL>_ · 🎥 **2-min walkthrough:** _<add Loom link>_
+🔗 **Live demo:** https://e-commerce-sales-performance-analysis.streamlit.app/ · 🎥 **2-min walkthrough:** _<add Loom link>_
 
 ![Dashboard screenshot](docs/screenshots/dashboard.png)
 <!-- Run the app, take a screenshot, save it as docs/screenshots/dashboard.png — see docs/screenshots/README.md -->
