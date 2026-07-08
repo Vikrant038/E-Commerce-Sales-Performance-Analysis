@@ -6,7 +6,7 @@
 
 🔗 **Live demo:** https://e-commerce-sales-performance-analysis.streamlit.app/ · 🎥 **2-min walkthrough:** _<add Loom link>_
 
-![Dashboard screenshot](docs/screenshots/dashboard.png)
+![Dashboard screenshot](docs/screenshots/image.png)
 <!-- Run the app, take a screenshot, save it as docs/screenshots/dashboard.png — see docs/screenshots/README.md -->
 
 ---
