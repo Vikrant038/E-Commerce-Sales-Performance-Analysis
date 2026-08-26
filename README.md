@@ -114,4 +114,4 @@ docker-compose.yml Zero-dependency local orchestration
 ## 🌟 About Me
 Hi! I'm **Vikrant Yadav** — I build AI automation & data systems for businesses. On a mission to make working with data enjoyable and engaging.
 
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/vikrant-ydata/)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-0077B5?style=for-the-badge&logo=linkedin&logoColor=white)](https://www.linkedin.com/in/vikrant-yadav3012)
