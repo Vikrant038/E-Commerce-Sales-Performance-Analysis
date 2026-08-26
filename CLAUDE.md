@@ -51,8 +51,8 @@ python -m src.clean                # rebuild all 5 Gold artifacts -> datasets/_r
 ```
 
 ## AI assistant
-Provider-agnostic (`src/llm.py`): drop in an `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
-or `GEMINI_API_KEY` and it's used automatically (override with `LLM_PROVIDER` /
+Provider-agnostic (`src/llm.py`): drop in a `GROK_API_KEY` (xAI), `ANTHROPIC_API_KEY`,
+`OPENAI_API_KEY`, or `GEMINI_API_KEY` and it's used automatically (override with `LLM_PROVIDER` /
 `LLM_MODEL`). See `.env.example`. With no key, the AI tab degrades to a notice and
 the rest of the app works.
 

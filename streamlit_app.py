@@ -214,7 +214,7 @@ with tab_ai:
             "🔒 The AI assistant is **not configured** (no API key) — the rest of "
             "the dashboard works fully without it.\n\n"
             "To enable it locally, add to `.streamlit/secrets.toml` or `.env`:\n"
-            "```toml\nANTHROPIC_API_KEY = \"sk-ant-...\"\n```\n"
+            "```toml\nGROK_API_KEY = \"xai-...\"\n# (or ANTHROPIC_API_KEY / OPENAI_API_KEY / GEMINI_API_KEY)\n```\n"
             "On Streamlit Cloud, add the same key under **App → Settings → Secrets**."
         )
         with st.expander("See exactly what would be sent to the model"):

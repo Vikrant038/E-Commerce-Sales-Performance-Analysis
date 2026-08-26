@@ -32,13 +32,17 @@ MAX_OUTPUT_TOKENS = 1024
 REQUEST_TIMEOUT_SECONDS = 30.0
 
 # Provider order used for auto-detection when no provider is explicitly set.
-PROVIDER_PRIORITY = ("anthropic", "openai", "gemini")
+PROVIDER_PRIORITY = ("grok", "xai", "anthropic", "openai", "gemini")
 PROVIDER_KEY_NAME = {
+    "grok": "GROK_API_KEY",
+    "xai": "XAI_API_KEY",
     "anthropic": "ANTHROPIC_API_KEY",
     "openai": "OPENAI_API_KEY",
     "gemini": "GEMINI_API_KEY",
 }
 PROVIDER_DEFAULT_MODEL = {
+    "grok": "grok-2-latest",
+    "xai": "grok-2-latest",
     "anthropic": "claude-3-5-haiku-20241022",
     "openai": "gpt-4o-mini",
     "gemini": "gemini-2.0-flash",
@@ -83,6 +87,9 @@ def get_config() -> LLMConfig:
     provider = _detect_provider()
     model = _setting("LLM_MODEL") or PROVIDER_DEFAULT_MODEL[provider]
     api_key = _setting(PROVIDER_KEY_NAME[provider])
+    # Also check XAI_API_KEY if grok provider is selected but GROK_API_KEY isn't set
+    if not api_key and provider in ("grok", "xai"):
+        api_key = _setting("XAI_API_KEY") or _setting("GROK_API_KEY")
     return LLMConfig(provider=provider, model=model, api_key=api_key)
 
 
@@ -97,6 +104,8 @@ def complete(system: str, user: str, max_tokens: int = MAX_OUTPUT_TOKENS) -> str
     if not config.api_key:
         raise LLMError("No API key configured.")
     handler = {
+        "grok": _complete_grok,
+        "xai": _complete_grok,
         "anthropic": _complete_anthropic,
         "openai": _complete_openai,
         "gemini": _complete_gemini,
@@ -112,6 +121,29 @@ def _require(module_name: str, package_name: str):
         return __import__(module_name, fromlist=["_"])
     except ModuleNotFoundError as exc:  # pragma: no cover - import guard
         raise LLMError(f"The '{package_name}' package is not installed.") from exc
+
+
+def _complete_grok(config: LLMConfig, system: str, user: str, max_tokens: int) -> str:
+    openai = _require("openai", "openai")
+    client = openai.OpenAI(
+        api_key=config.api_key,
+        base_url="https://api.x.ai/v1",
+        timeout=REQUEST_TIMEOUT_SECONDS,
+    )
+    try:
+        response = client.chat.completions.create(
+            model=config.model,
+            max_tokens=max_tokens,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+        )
+    except openai.APIStatusError as exc:
+        raise LLMError(f"The Grok AI service returned an error ({exc.status_code}).") from exc
+    except openai.APIError as exc:
+        raise LLMError("Could not reach the Grok AI service. Check your connection.") from exc
+    return (response.choices[0].message.content or "").strip()
 
 
 def _complete_anthropic(config: LLMConfig, system: str, user: str, max_tokens: int) -> str:

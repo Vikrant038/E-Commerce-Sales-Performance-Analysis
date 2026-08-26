@@ -4,7 +4,7 @@ import pytest
 
 from src import llm
 
-PROVIDER_KEYS = ("ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY")
+PROVIDER_KEYS = ("GROK_API_KEY", "XAI_API_KEY", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "GEMINI_API_KEY")
 OVERRIDES = ("LLM_PROVIDER", "LLM_MODEL")
 
 
@@ -14,26 +14,36 @@ def _clean_env(monkeypatch):
         monkeypatch.delenv(name, raising=False)
 
 
-def test_no_key_is_unavailable_and_defaults_to_anthropic():
+def test_no_key_is_unavailable_and_defaults_to_grok():
     assert llm.available() is False
-    assert llm.get_config().provider == "anthropic"
+    assert llm.get_config().provider == "grok"
 
 
 def test_single_key_selects_that_provider(monkeypatch):
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("GROK_API_KEY", "xai-test")
     config = llm.get_config()
-    assert config.provider == "openai"
-    assert config.model == llm.PROVIDER_DEFAULT_MODEL["openai"]
+    assert config.provider == "grok"
+    assert config.model == llm.PROVIDER_DEFAULT_MODEL["grok"]
+    assert llm.available() is True
+
+
+def test_xai_key_aliases_to_grok(monkeypatch):
+    monkeypatch.setenv("XAI_API_KEY", "xai-test-key")
+    config = llm.get_config()
+    assert config.provider in ("grok", "xai")
+    assert config.api_key == "xai-test-key"
     assert llm.available() is True
 
 
 def test_detection_follows_priority_order(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
     monkeypatch.setenv("GEMINI_API_KEY", "g-test")
-    # anthropic > openai > gemini — anthropic absent, so openai wins over gemini.
+    # grok > anthropic > openai > gemini — grok & anthropic absent, so openai wins over gemini.
     assert llm.get_config().provider == "openai"
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
     assert llm.get_config().provider == "anthropic"
+    monkeypatch.setenv("GROK_API_KEY", "xai-test")
+    assert llm.get_config().provider == "grok"
 
 
 def test_explicit_provider_and_model_override(monkeypatch):

@@ -20,12 +20,12 @@ figure = charts.monthly_trend(sales)        # a Plotly figure
 | `clean.py` | Bronze→Silver→Gold cleaning pipeline (mirrors the SQL). |
 | `insights.py` | KPI calculations + the six action-oriented insight cards. |
 | `charts.py` | Plotly figure builders (one per chart; mirror the SQL scripts). |
-| `llm.py` | Provider-agnostic LLM client (Anthropic / OpenAI / Gemini). |
+| `llm.py` | Multi-provider LLM client (Grok [xAI] / Anthropic / OpenAI / Gemini). |
 | `ai.py` | PII-free "ask the data" + executive summary, built on `llm.py`. |
 
 ## Dependencies
-`pandas`, `numpy`, `plotly`, `streamlit` (always); `anthropic` / `openai` /
-`google-genai` (only the one matching the configured AI provider — lazily imported).
+`pandas`, `numpy`, `plotly`, `streamlit`, `openpyxl` (always); `openai` (for Grok & OpenAI) /
+`anthropic` / `google-genai` (lazily imported).
 
 ## Public API
 - `data.build_sales()`, `data.filter_options()`, `data.apply_filters()`, `data.calculate_rfm()`, `data.calculate_market_basket()`, `data.logistics_kpis()`, `data.subcategory_profitability()`

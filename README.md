@@ -17,7 +17,7 @@
 
 🔗 **Live demo:** [Streamlit Cloud App](https://e-commerce-sales-performance-analysis.streamlit.app/) · 🎥 **Walkthrough:** [Interactive Case Study](docs/INSIGHTS.md)
 
-![Dashboard screenshot](docs/screenshots/dashboard.png)
+![Dashboard screenshot](docs/screenshots/image.png)
 
 ---
 
@@ -34,7 +34,7 @@
   4. 🚚 **Logistics & Operations:** On-time fulfillment gauge, delivery delay distribution, shipping turnaround.
   5. 🛒 **Cross-Selling & Basket:** Co-purchase pairing attach rates and multi-item order penetration.
   6. 💡 **Actionable Insights:** Dynamic headline metrics paired with strategic next actions.
-  7. 🤖 **Ask the Data (AI Assistant):** Conversational chat interface with message memory, streaming responses, and instant executive summaries.
+  7. 🤖 **Ask the Data (AI Assistant):** Conversational chat interface with message memory, streaming responses, and instant executive summaries powered by **Grok (xAI)**, Claude, GPT, or Gemini.
 - **Multi-Format Export:** Download filtered slices as **CSV** or complete multi-tab **Excel workbooks (`.xlsx`)**.
 
 ## 💡 Key Insights (each with a "so what")
@@ -67,10 +67,10 @@ docker compose up --build          # opens http://localhost:8501
 
 ---
 
-## 🤖 Enable the AI assistant (optional, multi-provider)
-The dashboard works fully without it. To enable the **Ask the data** chat tab, add **any one** provider key to `.streamlit/secrets.toml` or `.env`:
+## 🤖 Enable the AI assistant (Powered by Grok / xAI)
+The dashboard works fully without it. To enable the **Ask the data** chat tab, add your **Grok (xAI)** key to `.streamlit/secrets.toml` or `.env`:
 ```toml
-ANTHROPIC_API_KEY = "sk-ant-..."   # or OPENAI_API_KEY = "sk-..." or GEMINI_API_KEY = "AIza..."
+GROK_API_KEY = "xai-..."           # or XAI_API_KEY / ANTHROPIC_API_KEY / OPENAI_API_KEY / GEMINI_API_KEY
 ```
 The assistant receives **only an aggregated snapshot** of the current view (never raw customer records/PII), has a request timeout, and is capped per session to control cost.
 
@@ -101,13 +101,13 @@ src/
   clean.py       Python Bronze→Silver→Gold ETL pipeline (reproduces all 5 Gold CSVs)
   insights.py    Live KPIs + action-oriented insight engines
   charts.py      19 Plotly figure builders (scatter, choropleth, cohort heatmap, gauge)
-  llm.py / ai.py Multi-provider LLM client + PII-free aggregated context chat layer
+  llm.py / ai.py Grok (xAI) & multi-provider LLM client + PII-free aggregated context chat layer
 tests/           72 pytest tests (data quality, charts, ETL regression, headless AppTest)
 Dockerfile       Containerized deployment
 docker-compose.yml Zero-dependency local orchestration
 ```
 
-**Tech:** T-SQL (Microsoft SQL Server / Medallion Architecture) · Python 3.12 · pandas · Streamlit · Plotly · openpyxl · Anthropic / OpenAI / Gemini · Docker · pytest + GitHub Actions.
+**Tech:** T-SQL (Microsoft SQL Server / Medallion Architecture) · Python 3.12 · pandas · Streamlit · Plotly · openpyxl · Grok (xAI) / Anthropic / OpenAI / Gemini · Docker · pytest + GitHub Actions.
 
 ---
 
