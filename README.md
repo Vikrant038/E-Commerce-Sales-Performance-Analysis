@@ -15,9 +15,15 @@
 
 **Turn raw e-commerce data into decisions.** This project takes raw CRM/ERP sales extracts, cleans them into a star schema, and serves the result as an **interactive dashboard** anyone can use — no SQL required. It features deep analytics on product margins, customer RFM segmentation, logistics fulfillment, market basket cross-selling, and answers plain-English questions via an optional **conversational AI assistant**.
 
-🔗 **Live demo:** [Streamlit Cloud App](https://e-commerce-sales-performance-analysis.streamlit.app/) · 🎥 **Walkthrough:** [Interactive Case Study](docs/INSIGHTS.md)
+🔗 **Live demo:** **[https://e-commerce-sales-performance-analysis.streamlit.app/](https://e-commerce-sales-performance-analysis.streamlit.app/)** · 🎥 **Walkthrough:** [Interactive Case Study](docs/INSIGHTS.md)
 
 ![Dashboard screenshot](docs/screenshots/image.png)
+
+---
+
+## 🌐 Live Application
+Access the production dashboard directly in your browser:
+👉 **[https://e-commerce-sales-performance-analysis.streamlit.app/](https://e-commerce-sales-performance-analysis.streamlit.app/)**
 
 ---
 

@@ -43,6 +43,6 @@ Headline numbers: **€29.4M revenue · €11.7M gross profit · 39.8% margin ·
 T-SQL (Microsoft SQL Server / Medallion DDL & Stored Procedures), Python 3.12, pandas, Streamlit, Plotly, openpyxl, Docker, pytest, GitHub Actions.
 
 ## Links
-- **Live demo:** [Streamlit Cloud App](https://e-commerce-sales-performance-analysis.streamlit.app/)
-- **Repository:** [GitHub](https://github.com/Vikrant038/E-Commerce-Sales-Performance-Analysis)
+- **Live demo:** [https://e-commerce-sales-performance-analysis.streamlit.app/](https://e-commerce-sales-performance-analysis.streamlit.app/)
+- **Repository:** [https://github.com/Vikrant038/E-Commerce-Sales-Performance-Analysis](https://github.com/Vikrant038/E-Commerce-Sales-Performance-Analysis)
 

@@ -2,7 +2,7 @@
 
 A natural, conversational Loom script (~320 words ≈ 2:00 at a relaxed pace). Talk like you're showing a friend, not reading a paper. Text in **[brackets]** = what to show on screen.
 
-> Before you record: open the live dashboard, reset filters, close extra tabs. Use [Loom](https://loom.com) — webcam bubble + screen. One take is fine; energy beats polish.
+> Before you record: open the live dashboard at [https://e-commerce-sales-performance-analysis.streamlit.app/](https://e-commerce-sales-performance-analysis.streamlit.app/), reset filters, close extra tabs. Use [Loom](https://loom.com) — webcam bubble + screen. One take is fine; energy beats polish.
 
 ---
 
