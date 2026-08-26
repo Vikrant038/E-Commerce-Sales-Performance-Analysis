@@ -87,7 +87,7 @@ SELECT
 	subcategory,
 	cost,
 	last_sale_date,
-	DATEDIFF(MONTH, last_sale_date, GETDATE()) AS recency_in_months,
+	DATEDIFF(MONTH, last_sale_date, (SELECT MAX(order_date) FROM gold.fact_sales)) AS recency_in_months,
 	CASE
 		WHEN total_sales > 50000 THEN 'High-Performer'
 		WHEN total_sales >= 10000 THEN 'Mid-Range'
@@ -111,4 +111,4 @@ SELECT
 		ELSE total_sales / lifespan
 	END AS avg_monthly_revenue
 
-FROM product_aggregations 
+FROM product_aggregations;

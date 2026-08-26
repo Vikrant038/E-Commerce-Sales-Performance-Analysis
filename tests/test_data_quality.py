@@ -54,3 +54,35 @@ def test_empty_filter_returns_empty_not_error(sales):
         [], [], [],
     )
     assert out.empty
+
+
+def test_rfm_calculation(sales):
+    rfm = data.calculate_rfm(sales)
+    assert not rfm.empty
+    assert "rfm_segment" in rfm.columns
+    assert set(rfm["rfm_segment"]).issubset({
+        "Champions", "Loyal Customers", "Potential Loyalists",
+        "At Risk", "Hibernating High-Value", "Standard / Casual"
+    })
+
+
+def test_market_basket_calculation(sales):
+    basket = data.calculate_market_basket(sales, min_occurrences=2)
+    assert not basket.empty
+    assert "attach_rate_pct" in basket.columns
+    assert "co_occurrences" in basket.columns
+
+
+def test_logistics_kpis_calculation(sales):
+    log = data.logistics_kpis(sales)
+    assert 0 <= log["on_time_rate"] <= 100
+    assert log["avg_days_to_ship"] >= 0
+    assert log["total_shipped"] == len(sales)
+
+
+def test_subcategory_profitability(sales):
+    sub = data.subcategory_profitability(sales)
+    assert not sub.empty
+    assert "margin" in sub.columns
+    assert "profit" in sub.columns
+    assert (sub["revenue"] >= 0).all()

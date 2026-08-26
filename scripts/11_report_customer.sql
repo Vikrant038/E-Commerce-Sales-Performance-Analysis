@@ -30,7 +30,12 @@ GO
 
 CREATE VIEW gold.report_customers AS
 
-WITH base_query AS(
+WITH max_date_ref AS (
+    SELECT MAX(order_date) AS max_order_date
+    FROM gold.fact_sales
+),
+
+base_query AS (
 /*---------------------------------------------------------------------------
 1) Base Query: Retrieves core columns from tables
 ---------------------------------------------------------------------------*/
@@ -43,7 +48,7 @@ f.quantity,
 c.customer_key,
 c.customer_number,
 CONCAT(c.first_name, ' ', c.last_name) AS customer_name,
-DATEDIFF(year, c.birthdate, GETDATE()) age
+DATEDIFF(year, c.birthdate, (SELECT max_order_date FROM max_date_ref)) AS age
 FROM gold.fact_sales f
 LEFT JOIN gold.dim_customers c
 ON c.customer_key = f.customer_key
@@ -89,18 +94,18 @@ CASE
     ELSE 'New'
 END AS customer_segment,
 last_order_date,
-DATEDIFF(month, last_order_date, GETDATE()) AS recency,
+DATEDIFF(month, last_order_date, (SELECT max_order_date FROM max_date_ref)) AS recency,
 total_orders,
 total_sales,
 total_quantity,
-total_products
+total_products,
 lifespan,
--- Compuate average order value (AVO)
-CASE WHEN total_sales = 0 THEN 0
+-- Compute average order value (AOV)
+CASE WHEN total_orders = 0 THEN 0
 	 ELSE total_sales / total_orders
 END AS avg_order_value,
--- Compuate average monthly spend
+-- Compute average monthly spend
 CASE WHEN lifespan = 0 THEN total_sales
      ELSE total_sales / lifespan
 END AS avg_monthly_spend
-FROM customer_aggregation
+FROM customer_aggregation;

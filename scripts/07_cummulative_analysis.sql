@@ -12,17 +12,18 @@ Purpose:
 -- Calculate the total sales per month 
 -- and the running total of sales over time 
 SELECT
-	order_date,
-	total_sales,
-	SUM(total_sales) OVER (ORDER BY order_date) AS running_total_sales,
-	AVG(avg_price) OVER (ORDER BY order_date) AS moving_average_price
+	order_month,
+	monthly_sales,
+	SUM(monthly_sales) OVER (ORDER BY order_month) AS running_total_sales,
+	AVG(monthly_sales) OVER (ORDER BY order_month ROWS BETWEEN 2 PRECEDING AND CURRENT ROW) AS moving_avg_3m_sales
 FROM
 (
     SELECT 
-        DATETRUNC(year, order_date) AS order_date,
-        SUM(sales_amount) AS total_sales,
-        AVG(price) AS avg_price
+        DATETRUNC(month, order_date) AS order_month,
+        SUM(sales_amount) AS monthly_sales,
+        AVG(CAST(price AS FLOAT)) AS avg_unit_price
     FROM gold.fact_sales
     WHERE order_date IS NOT NULL
-    GROUP BY DATETRUNC(year, order_date)
+    GROUP BY DATETRUNC(month, order_date)
 ) t
+ORDER BY order_month;

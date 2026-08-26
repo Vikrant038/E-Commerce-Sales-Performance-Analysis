@@ -110,12 +110,16 @@ def clean_crm_sales_details(bronze: pd.DataFrame) -> pd.DataFrame:
     return df.reset_index(drop=True)
 
 
+# Historical dataset reference anchor date (2014-01-31)
+ANCHOR_DATE = pd.Timestamp("2014-01-31")
+
+
 def clean_erp_cust_az12(bronze: pd.DataFrame) -> pd.DataFrame:
     """Strip the 'NAS' key prefix, null out future birthdates, normalise gender."""
     df = bronze.copy()
     df["cid"] = df["cid"].str.replace(r"^NAS", "", regex=True).str.strip()
     df["bdate"] = pd.to_datetime(df["bdate"], errors="coerce")
-    df.loc[df["bdate"] > pd.Timestamp.now(), "bdate"] = pd.NaT
+    df.loc[df["bdate"] > ANCHOR_DATE, "bdate"] = pd.NaT
     gender_raw = df["gen"].str.strip().str.upper()
     df["gen"] = np.select(
         [gender_raw.isin(["F", "FEMALE"]), gender_raw.isin(["M", "MALE"])],
@@ -143,7 +147,7 @@ def clean_erp_px_cat(bronze: pd.DataFrame) -> pd.DataFrame:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Gold star schema (one builder per table, assembled by build_gold)
+# Gold star schema & reporting views (assembled by build_gold)
 # ─────────────────────────────────────────────────────────────────────────────
 def _build_dim_customers(silver: dict[str, pd.DataFrame]) -> pd.DataFrame:
     """Customer dimension — CRM is master; gender falls back to ERP when CRM is n/a."""
@@ -230,20 +234,142 @@ def _build_fact_sales(
     )
 
 
+def _build_report_customers(
+    fact_sales: pd.DataFrame, dim_customers: pd.DataFrame
+) -> pd.DataFrame:
+    """Customer KPI view — mirrors scripts/11_report_customer.sql."""
+    valid = fact_sales[fact_sales["order_date"].notna()].merge(
+        dim_customers, on="customer_key", how="left"
+    )
+    max_date = valid["order_date"].max() if not valid.empty else ANCHOR_DATE
+
+    agg = valid.groupby(
+        ["customer_key", "customer_number", "first_name", "last_name", "birthdate"],
+        dropna=False,
+    ).agg(
+        total_orders=("order_number", "nunique"),
+        total_sales=("sales_amount", "sum"),
+        total_quantity=("quantity", "sum"),
+        total_products=("product_key", "nunique"),
+        last_order_date=("order_date", "max"),
+        first_order_date=("order_date", "min"),
+    ).reset_index()
+
+    agg["customer_name"] = agg["first_name"] + " " + agg["last_name"]
+    agg["age"] = np.where(
+        agg["birthdate"].notna(),
+        ((max_date - agg["birthdate"]).dt.days // 365.25),
+        0,
+    ).astype(int)
+
+    # Age group
+    bins = [-1, 19, 29, 39, 49, 150]
+    labels = ["Under 20", "20-29", "30-39", "40-49", "50 and above"]
+    agg["age_group"] = pd.cut(agg["age"], bins=bins, labels=labels).astype(str)
+
+    # Lifespan in months
+    agg["lifespan"] = (
+        (agg["last_order_date"].dt.year - agg["first_order_date"].dt.year) * 12
+        + (agg["last_order_date"].dt.month - agg["first_order_date"].dt.month)
+    )
+
+    # Customer segment
+    agg["customer_segment"] = np.where(
+        (agg["lifespan"] >= 12) & (agg["total_sales"] > 5000), "VIP",
+        np.where((agg["lifespan"] >= 12) & (agg["total_sales"] <= 5000), "Regular", "New")
+    )
+
+    # Recency in months from anchor/max date
+    agg["recency"] = (
+        (max_date.year - agg["last_order_date"].dt.year) * 12
+        + (max_date.month - agg["last_order_date"].dt.month)
+    )
+
+    agg["avg_order_value"] = np.where(
+        agg["total_orders"] > 0, (agg["total_sales"] / agg["total_orders"]).round(), 0
+    ).astype(int)
+
+    agg["avg_monthly_spend"] = np.where(
+        agg["lifespan"] > 0, (agg["total_sales"] / agg["lifespan"]).round(), agg["total_sales"]
+    ).astype(int)
+
+    cols = [
+        "customer_key", "customer_number", "customer_name", "age", "age_group",
+        "customer_segment", "last_order_date", "recency", "total_orders",
+        "total_sales", "total_quantity", "lifespan", "avg_order_value", "avg_monthly_spend"
+    ]
+    return agg[cols].sort_values("customer_key").reset_index(drop=True)
+
+
+def _build_report_products(
+    fact_sales: pd.DataFrame, dim_products: pd.DataFrame
+) -> pd.DataFrame:
+    """Product KPI view — mirrors scripts/12_report_products.sql."""
+    valid = fact_sales[fact_sales["order_date"].notna()].merge(
+        dim_products, on="product_key", how="left"
+    )
+    max_date = valid["order_date"].max() if not valid.empty else ANCHOR_DATE
+
+    agg = valid.groupby([
+        "product_key", "product_name", "category", "subcategory", "cost"
+    ], dropna=False).agg(
+        total_orders=("order_number", "nunique"),
+        total_customers=("customer_key", "nunique"),
+        total_sales=("sales_amount", "sum"),
+        total_quantity=("quantity", "sum"),
+        last_sale_date=("order_date", "max"),
+        first_sale_date=("order_date", "min"),
+    ).reset_index()
+
+    agg["lifespan"] = (
+        (agg["last_sale_date"].dt.year - agg["first_sale_date"].dt.year) * 12
+        + (agg["last_sale_date"].dt.month - agg["first_sale_date"].dt.month)
+    )
+    agg["recency_in_months"] = (
+        (max_date.year - agg["last_sale_date"].dt.year) * 12
+        + (max_date.month - agg["last_sale_date"].dt.month)
+    )
+    agg["product_segment"] = np.where(
+        agg["total_sales"] > 50000, "High-Performer",
+        np.where(agg["total_sales"] >= 10000, "Mid-Range", "Low-Performer")
+    )
+    agg["avg_selling_price"] = np.where(
+        agg["total_quantity"] > 0, (agg["total_sales"] / agg["total_quantity"]).round(1), 0.0
+    )
+    agg["avg_order_revenue"] = np.where(
+        agg["total_orders"] > 0, (agg["total_sales"] / agg["total_orders"]).round(), 0
+    ).astype(int)
+    agg["avg_monthly_revenue"] = np.where(
+        agg["lifespan"] > 0, (agg["total_sales"] / agg["lifespan"]).round(), agg["total_sales"]
+    ).astype(int)
+
+    cols = [
+        "product_key", "product_name", "category", "subcategory", "cost",
+        "last_sale_date", "recency_in_months", "product_segment", "lifespan",
+        "total_orders", "total_sales", "total_quantity", "total_customers",
+        "avg_selling_price", "avg_order_revenue", "avg_monthly_revenue"
+    ]
+    return agg[cols].sort_values("product_key").reset_index(drop=True)
+
+
 def build_gold(silver: dict[str, pd.DataFrame]) -> dict[str, pd.DataFrame]:
-    """Assemble the Gold star schema (dim_customers, dim_products, fact_sales)."""
+    """Assemble the Gold star schema and reporting views."""
     dim_customers = _build_dim_customers(silver)
     dim_products = _build_dim_products(silver)
     fact_sales = _build_fact_sales(silver, dim_products, dim_customers)
+    report_customers = _build_report_customers(fact_sales, dim_customers)
+    report_products = _build_report_products(fact_sales, dim_products)
     return {
         "dim_customers": dim_customers,
         "dim_products": dim_products,
         "fact_sales": fact_sales,
+        "report_customers": report_customers,
+        "report_products": report_products,
     }
 
 
 def run_pipeline() -> dict[str, pd.DataFrame]:
-    """Full bronze -> silver -> gold run. Returns the three gold tables."""
+    """Full bronze -> silver -> gold run. Returns all gold tables and views."""
     silver = {
         "crm_cust_info": clean_crm_cust_info(_read_bronze("crm_cust_info")),
         "crm_prd_info": clean_crm_prd_info(_read_bronze("crm_prd_info")),

@@ -45,8 +45,9 @@ only to a fixed, configured LLM provider endpoint.
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements-dev.txt
 streamlit run streamlit_app.py     # run the app
-pytest -q                          # run the tests
-python -m src.clean                # rebuild Gold from Bronze -> datasets/_rebuilt/
+pytest -v                          # run all 72 tests
+ruff check .                       # linter
+python -m src.clean                # rebuild all 5 Gold artifacts -> datasets/_rebuilt/
 ```
 
 ## AI assistant
@@ -56,5 +57,5 @@ or `GEMINI_API_KEY` and it's used automatically (override with `LLM_PROVIDER` /
 the rest of the app works.
 
 ## Map
-`src/` modules (see `src/README.md`) · `scripts/` SQL pipeline · `tests/` pytest ·
+`src/` modules (see `src/README.md`) · `scripts/` SQL pipeline · `tests/` pytest (72 tests) ·
 `docs/` case study + video script · `.github/workflows/ci.yml` CI.

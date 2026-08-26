@@ -1,7 +1,5 @@
 """AI layer: security (no PII, no key needed to fail safe) — no live API calls."""
 
-import os
-
 import pytest
 
 from src import ai, data, llm

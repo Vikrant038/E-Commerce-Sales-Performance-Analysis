@@ -36,3 +36,11 @@ def test_repeat_customer_share_exceeds_their_headcount(sales):
 def test_insights_empty_on_empty_frame(sales):
     empty = sales.iloc[0:0]
     assert insights.all_insights(empty) == []
+
+
+def test_fulfillment_and_cross_sell_insights(sales):
+    ful = insights.fulfillment_efficiency(sales)
+    assert ful and "on-time" in ful["metric"]
+
+    cross = insights.cross_sell_opportunity(sales)
+    assert cross and "attach rate" in cross["metric"]

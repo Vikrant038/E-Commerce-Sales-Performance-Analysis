@@ -28,14 +28,14 @@ figure = charts.monthly_trend(sales)        # a Plotly figure
 `google-genai` (only the one matching the configured AI provider — lazily imported).
 
 ## Public API
-- `data.build_sales()`, `data.filter_options()`, `data.apply_filters()`
-- `insights.kpis()`, `insights.all_insights()`
-- `charts.*` figure builders
-- `clean.run_pipeline()` → `{dim_customers, dim_products, fact_sales}`
+- `data.build_sales()`, `data.filter_options()`, `data.apply_filters()`, `data.calculate_rfm()`, `data.calculate_market_basket()`, `data.logistics_kpis()`, `data.subcategory_profitability()`
+- `insights.kpis()`, `insights.all_insights()`, `insights.fulfillment_efficiency()`, `insights.cross_sell_opportunity()`
+- `charts.*` 19 Plotly figure builders (including choropleth, cohort heatmap, scatter, gauge)
+- `clean.run_pipeline()` → `{dim_customers, dim_products, fact_sales, report_customers, report_products}`
 - `ai.build_context()`, `ai.answer_question()`, `ai.executive_summary()`
 - `llm.available()`, `llm.complete()`, `llm.get_config()`
 
 ## Testing
 ```bash
-pytest -q          # from the repo root
+pytest -v          # from the repo root (72 tests)
 ```

@@ -117,6 +117,8 @@ def test_rebuilt_row_counts_match_committed(gold):
     assert len(gold["dim_customers"]) == len(_committed("dim_customers"))
     assert len(gold["dim_products"]) == len(_committed("dim_products"))
     assert len(gold["fact_sales"]) == len(_committed("fact_sales"))
+    assert len(gold["report_customers"]) == len(_committed("report_customers"))
+    assert len(gold["report_products"]) == len(_committed("report_products"))
 
 
 def test_rebuilt_has_no_orphan_keys(gold):

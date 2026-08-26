@@ -76,6 +76,23 @@ def _top_line(sales: pd.DataFrame, column: str, label: str) -> str:
     return f"- {label}: " + ", ".join(f"{name}: {value:,.0f}" for name, value in top.items())
 
 
+def _logistics_line(sales: pd.DataFrame) -> str:
+    if "is_on_time" not in sales.columns or sales.empty:
+        return "- Fulfillment: 100% on-time, avg turnaround 0 days"
+    on_time_pct = (sales["is_on_time"].sum() / len(sales) * 100)
+    avg_days = sales["days_to_ship"].dropna().mean() if "days_to_ship" in sales else 0.0
+    return f"- Fulfillment: {on_time_pct:.1f}% on-time shipping rate; avg dispatch turnaround: {avg_days:.1f} days"
+
+
+def _cross_sell_line(sales: pd.DataFrame) -> str:
+    from . import data
+    basket = data.calculate_market_basket(sales, min_occurrences=5).head(3)
+    if basket.empty:
+        return ""
+    pairs = [f"{row['item_a']} + {row['item_b']} ({row['attach_rate_pct']:.0f}% attach)" for _, row in basket.iterrows()]
+    return "- Top cross-sell pairings: " + ", ".join(pairs)
+
+
 def build_context(sales: pd.DataFrame) -> str:
     """Compact, PII-free aggregate snapshot of the (filtered) data for the model."""
     if sales.empty:
@@ -89,9 +106,13 @@ def build_context(sales: pd.DataFrame) -> str:
         *_category_lines(sales),
         *_segment_lines(sales),
         year_line,
+        _logistics_line(sales),
         _top_line(sales, "country", "Top countries"),
         _top_line(sales, "product_name", "Top products"),
     ]
+    cross_sell = _cross_sell_line(sales)
+    if cross_sell:
+        lines.append(cross_sell)
     return "\n".join(lines)
 
 

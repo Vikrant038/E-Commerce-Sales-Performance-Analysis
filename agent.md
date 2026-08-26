@@ -150,11 +150,12 @@ Source Systems (CRM, ERP)
 | Aspect | Approach |
 |--------|----------|
 | **Framework** | `pytest` for the Python layer (`tests/`), run automatically in CI; manual SSMS verification for SQL |
-| **Run tests** | `pip install -r requirements-dev.txt && pytest -q` (23 tests) |
+| **Run tests** | `pip install -r requirements-dev.txt && pytest -v` (72 tests) |
 | **Validation** | Run scripts in SSMS/Azure Data Studio; inspect row counts, spot-check known values |
-| **Regression** | `tests/test_clean.py` asserts the Python pipeline reproduces committed Gold (rows exact, revenue within 0.01%) |
-| **Data Quality** | Tests enforce no NULL PK/FK and fact→dim integrity; AI tests assert no PII leaves in the LLM context |
-| **App smoke test** | `streamlit.testing.v1.AppTest` renders the whole app headless with no exceptions |
+| **Regression** | `tests/test_clean.py` asserts the Python pipeline reproduces all 5 Gold artifacts |
+| **Data Quality** | Tests enforce no NULL PK/FK, fact→dim integrity, RFM scoring, logistics KPIs; AI tests assert no PII leaves in the LLM context |
+| **Charts** | `tests/test_charts.py` validates all 19 Plotly figure builders on normal and empty slices |
+| **App smoke test** | `tests/test_app.py` uses `streamlit.testing.v1.AppTest` to render the whole app headless with no exceptions |
 
 ### Adding a New Analytical Script
 1. Create `scripts/NN_new_analysis.sql` (next number)

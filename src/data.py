@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import numpy as np
 import pandas as pd
 import streamlit as st
 
@@ -84,6 +85,13 @@ def build_sales() -> pd.DataFrame:
     # First-ever order year per customer → lets us split new vs returning revenue.
     first_year = sales.groupby("customer_key")["order_year"].transform("min")
     sales["is_returning"] = sales["order_year"] > first_year
+
+    # Logistics & fulfillment attributes
+    sales["days_to_ship"] = (sales["shipping_date"] - sales["order_date"]).dt.days
+    sales["is_on_time"] = sales["shipping_date"] <= sales["due_date"]
+    sales["shipping_delay_days"] = (
+        (sales["shipping_date"] - sales["due_date"]).dt.days.clip(lower=0)
+    )
     return sales
 
 
@@ -117,3 +125,116 @@ def apply_filters(
     if segments:
         out = out[out["customer_segment"].isin(segments)]
     return out
+
+
+def calculate_rfm(sales: pd.DataFrame) -> pd.DataFrame:
+    """
+    Computes dynamic Recency, Frequency, and Monetary metrics for customers.
+    Clusters customers into actionable segments: Champions, Loyal, Potential Loyalists,
+    At Risk, Hibernating, and Promising.
+    """
+    if sales.empty:
+        return pd.DataFrame(columns=["customer_key", "recency", "frequency", "monetary", "rfm_segment"])
+
+    ref_date = sales["order_date"].max()
+    rfm = sales.groupby("customer_key").agg(
+        recency=("order_date", lambda dates: (ref_date - dates.max()).days),
+        frequency=("order_number", "nunique"),
+        monetary=("sales_amount", "sum"),
+    ).reset_index()
+
+    # Dynamic RFM Scoring
+    r_labels = [4, 3, 2, 1]
+    f_labels = [1, 2, 3, 4]
+    m_labels = [1, 2, 3, 4]
+
+    rfm["r_score"] = pd.qcut(rfm["recency"].rank(method="first"), q=4, labels=r_labels).astype(int)
+    rfm["f_score"] = pd.qcut(rfm["frequency"].rank(method="first"), q=4, labels=f_labels).astype(int)
+    rfm["m_score"] = pd.qcut(rfm["monetary"].rank(method="first"), q=4, labels=m_labels).astype(int)
+
+    def _assign_segment(row: pd.Series) -> str:
+        r, f, m = row["r_score"], row["f_score"], row["m_score"]
+        if r >= 3 and f >= 3 and m >= 3:
+            return "Champions"
+        if f >= 3:
+            return "Loyal Customers"
+        if r >= 3 and f <= 2:
+            return "Potential Loyalists"
+        if r <= 2 and f >= 3:
+            return "At Risk"
+        if r <= 2 and f <= 2 and m >= 3:
+            return "Hibernating High-Value"
+        return "Standard / Casual"
+
+    rfm["rfm_segment"] = rfm.apply(_assign_segment, axis=1)
+    return rfm
+
+
+def calculate_market_basket(sales: pd.DataFrame, min_occurrences: int = 5) -> pd.DataFrame:
+    """
+    Computes product subcategory co-occurrences in multi-item orders.
+    Calculates attach rate % and co-occurrence counts.
+    """
+    if sales.empty:
+        return pd.DataFrame(columns=["item_a", "item_b", "co_occurrences", "attach_rate_pct"])
+
+    order_items = sales.groupby("order_number")["subcategory"].unique().reset_index()
+    order_items = order_items[order_items["subcategory"].apply(len) > 1]
+    if order_items.empty:
+        return pd.DataFrame(columns=["item_a", "item_b", "co_occurrences", "attach_rate_pct"])
+
+    pairs_list = []
+    for subcats in order_items["subcategory"]:
+        sorted_items = sorted(subcats)
+        for i in range(len(sorted_items)):
+            for j in range(i + 1, len(sorted_items)):
+                pairs_list.append((sorted_items[i], sorted_items[j]))
+
+    if not pairs_list:
+        return pd.DataFrame(columns=["item_a", "item_b", "co_occurrences", "attach_rate_pct"])
+
+    pairs_df = pd.DataFrame(pairs_list, columns=["item_a", "item_b"])
+    counts = pairs_df.groupby(["item_a", "item_b"]).size().reset_index(name="co_occurrences")
+    counts = counts[counts["co_occurrences"] >= min_occurrences].sort_values("co_occurrences", ascending=False)
+
+    item_totals = sales.groupby("subcategory")["order_number"].nunique()
+    counts["item_a_orders"] = counts["item_a"].map(item_totals)
+    counts["attach_rate_pct"] = (counts["co_occurrences"] / counts["item_a_orders"] * 100).round(1)
+    return counts.reset_index(drop=True)
+
+
+def subcategory_profitability(sales: pd.DataFrame) -> pd.DataFrame:
+    """Computes revenue, gross profit, and margin % by subcategory."""
+    if sales.empty:
+        return pd.DataFrame(columns=["category", "subcategory", "revenue", "profit", "margin", "units", "orders"])
+
+    grp = sales.groupby(["category", "subcategory"]).agg(
+        revenue=("sales_amount", "sum"),
+        profit=("profit", "sum"),
+        units=("quantity", "sum"),
+        orders=("order_number", "nunique"),
+    ).reset_index()
+
+    grp["margin"] = np.where(grp["revenue"] > 0, grp["profit"] / grp["revenue"] * 100, 0.0).round(1)
+    return grp.sort_values("revenue", ascending=False).reset_index(drop=True)
+
+
+def logistics_kpis(sales: pd.DataFrame) -> dict:
+    """Fulfillment and shipping operations KPIs."""
+    if sales.empty or "is_on_time" not in sales.columns:
+        return {
+            "on_time_rate": 100.0,
+            "avg_days_to_ship": 0.0,
+            "late_orders": 0,
+            "total_shipped": 0,
+        }
+    total = len(sales)
+    on_time = int(sales["is_on_time"].sum())
+    late = total - on_time
+    avg_ship = float(sales["days_to_ship"].dropna().mean()) if not sales["days_to_ship"].isna().all() else 0.0
+    return {
+        "on_time_rate": (on_time / total * 100) if total else 0.0,
+        "avg_days_to_ship": avg_ship,
+        "late_orders": late,
+        "total_shipped": total,
+    }

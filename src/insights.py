@@ -32,7 +32,7 @@ def kpis(sales: pd.DataFrame) -> dict:
     }
 
 
-def _card(icon, title, metric, takeaway, action):
+def _card(icon: str, title: str, metric: str, takeaway: str, action: str) -> dict[str, str]:
     return {
         "icon": icon,
         "title": title,
@@ -103,14 +103,17 @@ def repeat_customer_value(sales: pd.DataFrame) -> dict:
 
 def returning_growth(sales: pd.DataFrame) -> dict:
     by_year = sales.groupby("order_year")["sales_amount"].sum()
-    if by_year.empty:
+    if len(by_year) <= 1:
         return {}
     peak_year = int(by_year.idxmax())
     yr = sales[sales["order_year"] == peak_year]
     yr_total = yr["sales_amount"].sum()
     if yr_total == 0:
         return {}
-    ret_share = yr[yr["is_returning"]]["sales_amount"].sum() / yr_total * 100
+    ret_rev = yr[yr["is_returning"]]["sales_amount"].sum()
+    ret_share = ret_rev / yr_total * 100
+    if ret_share <= 0:
+        return {}
     return _card(
         "📈", "Growth came from returning buyers",
         f"€{by_year.max()/1e6:.1f}M peak",
@@ -124,7 +127,7 @@ def returning_growth(sales: pd.DataFrame) -> dict:
 def market_concentration(sales: pd.DataFrame) -> dict:
     by_country = sales.groupby("country")["sales_amount"].sum().sort_values(ascending=False)
     total = by_country.sum()
-    if by_country.empty or total == 0:
+    if by_country.empty or total == 0 or len(by_country) < 2:
         return {}
     top2 = by_country.head(2)
     top2_share = top2.sum() / total * 100
@@ -140,7 +143,8 @@ def market_concentration(sales: pd.DataFrame) -> dict:
 
 def seasonality(sales: pd.DataFrame) -> dict:
     by_month = sales.groupby(sales["order_date"].dt.month)["sales_amount"].sum()
-    if by_month.empty or by_month.min() == 0:
+    # Only meaningful if we have at least 10 months represented
+    if len(by_month) < 10 or by_month.min() == 0:
         return {}
     import calendar
 
@@ -156,14 +160,46 @@ def seasonality(sales: pd.DataFrame) -> dict:
     )
 
 
+def fulfillment_efficiency(sales: pd.DataFrame) -> dict:
+    if sales.empty or "is_on_time" not in sales.columns:
+        return {}
+    total = len(sales)
+    on_time_pct = (sales["is_on_time"].sum() / total * 100) if total else 0.0
+    avg_days = float(sales["days_to_ship"].dropna().mean()) if "days_to_ship" in sales else 0.0
+    return _card(
+        "🚚", "Fulfillment performance",
+        f"{on_time_pct:.1f}% on-time",
+        f"**{on_time_pct:.1f}%** of orders shipped on or before due date with an "
+        f"average dispatch turnaround of **{avg_days:.1f} days**.",
+        "Optimize warehouse picking routes to eliminate delayed shipments.",
+    )
+
+
+def cross_sell_opportunity(sales: pd.DataFrame) -> dict:
+    from . import data
+    basket = data.calculate_market_basket(sales, min_occurrences=10)
+    if basket.empty:
+        return {}
+    top_pair = basket.iloc[0]
+    return _card(
+        "🛒", "Top attach-rate pairing",
+        f"{top_pair['attach_rate_pct']:.0f}% attach rate",
+        f"**{top_pair['item_a']}** and **{top_pair['item_b']}** are frequently bought "
+        f"together (**{top_pair['co_occurrences']:,} co-purchases**).",
+        f"Bundle {top_pair['item_b']} at checkout whenever {top_pair['item_a']} is in the cart.",
+    )
+
+
 def all_insights(sales: pd.DataFrame) -> list[dict]:
     """The headline insights, in display order. Empty dicts are filtered out."""
     cards = [
         category_concentration(sales),
         margin_opportunity(sales),
+        cross_sell_opportunity(sales),
         repeat_customer_value(sales),
         returning_growth(sales),
         market_concentration(sales),
+        fulfillment_efficiency(sales),
         seasonality(sales),
     ]
     return [c for c in cards if c]

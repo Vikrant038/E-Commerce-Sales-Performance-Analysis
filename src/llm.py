@@ -39,7 +39,7 @@ PROVIDER_KEY_NAME = {
     "gemini": "GEMINI_API_KEY",
 }
 PROVIDER_DEFAULT_MODEL = {
-    "anthropic": "claude-opus-4-8",
+    "anthropic": "claude-3-5-haiku-20241022",
     "openai": "gpt-4o-mini",
     "gemini": "gemini-2.0-flash",
 }
